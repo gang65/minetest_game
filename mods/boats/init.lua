@@ -137,7 +137,7 @@ end
 
 
 function boat.on_step(self, dtime)
-	self.v = get_v(self.object:get_velocity()) * math.sign(self.v)
+	self.force = 0.0
 	if self.driver then
 		local driver_objref = minetest.get_player_by_name(self.driver)
 		if driver_objref then
@@ -148,42 +148,25 @@ function boat.on_step(self, dtime)
 					minetest.chat_send_player(self.driver, S("Boat cruise mode on"))
 				end
 			elseif ctrl.down then
-				self.v = self.v - dtime * 2.0
+				self.force = - dtime * 10.0
 				if self.auto then
 					self.auto = false
 					minetest.chat_send_player(self.driver, S("Boat cruise mode off"))
 				end
 			elseif ctrl.up or self.auto then
-				self.v = self.v + dtime * 2.0
+				self.force = dtime * 10.0
 			end
 			if ctrl.left then
-				if self.v < -0.001 then
-					self.object:set_yaw(self.object:get_yaw() - dtime * 0.9)
-				else
-					self.object:set_yaw(self.object:get_yaw() + dtime * 0.9)
-				end
+				self.object:set_yaw(self.object:get_yaw() + dtime * 0.9)
 			elseif ctrl.right then
-				if self.v < -0.001 then
-					self.object:set_yaw(self.object:get_yaw() + dtime * 0.9)
-				else
-					self.object:set_yaw(self.object:get_yaw() - dtime * 0.9)
-				end
+				self.object:set_yaw(self.object:get_yaw() - dtime * 0.9)
 			end
 		end
 	end
 	local velo = self.object:get_velocity()
-	if self.v == 0 and velo.x == 0 and velo.y == 0 and velo.z == 0 then
+	if self.force == 0 and velo.x == 0 and velo.y == 0 and velo.z == 0 then
 		self.object:set_pos(self.object:get_pos())
 		return
-	end
-	-- We need to preserve velocity sign to properly apply drag force
-	-- while moving backward
-	local drag = dtime * math.sign(self.v) * (0.01 + 0.0796 * self.v * self.v)
-	-- If drag is larger than velocity, then stop horizontal movement
-	if math.abs(self.v) <= math.abs(drag) then
-		self.v = 0
-	else
-		self.v = self.v - drag
 	end
 
 	local p = self.object:get_pos()
@@ -193,12 +176,11 @@ function boat.on_step(self, dtime)
 	if not is_water(p) then
 		local nodedef = minetest.registered_nodes[minetest.get_node(p).name]
 		if (not nodedef) or nodedef.walkable then
-			self.v = 0
 			new_acce = {x = 0, y = 1, z = 0}
 		else
 			new_acce = {x = 0, y = -9.8, z = 0}
 		end
-		new_velo = get_velocity(self.v, self.object:get_yaw(),
+		new_velo = get_velocity(self.force, self.object:get_yaw(),
 			self.object:get_velocity().y)
 		self.object:set_pos(self.object:get_pos())
 	else
@@ -212,7 +194,7 @@ function boat.on_step(self, dtime)
 			else
 				new_acce = {x = 0, y = 5, z = 0}
 			end
-			new_velo = get_velocity(self.v, self.object:get_yaw(), y)
+			new_velo = get_velocity(self.force, self.object:get_yaw(), y)
 			self.object:set_pos(self.object:get_pos())
 		else
 			new_acce = {x = 0, y = 0, z = 0}
@@ -220,14 +202,21 @@ function boat.on_step(self, dtime)
 				local pos = self.object:get_pos()
 				pos.y = math.floor(pos.y) + 0.5
 				self.object:set_pos(pos)
-				new_velo = get_velocity(self.v, self.object:get_yaw(), 0)
+				new_velo = get_velocity(self.force, self.object:get_yaw(), 0)
 			else
-				new_velo = get_velocity(self.v, self.object:get_yaw(),
+				new_velo = get_velocity(self.force, self.object:get_yaw(),
 					self.object:get_velocity().y)
 				self.object:set_pos(self.object:get_pos())
 			end
 		end
 	end
+	new_velo = {x = new_velo.x + self.object:get_velocity().x,
+	            y = new_velo.y,
+							z = new_velo.z + self.object:get_velocity().z}
+	new_velo = {x = new_velo.x - dtime * 0.3 * math.sign(self.object:get_velocity().x) * self.object:get_velocity().x * self.object:get_velocity().x,
+	            y = new_velo.y,
+							z = new_velo.z - dtime * 0.3 * math.sign(self.object:get_velocity().z) * self.object:get_velocity().z * self.object:get_velocity().z}
+
 	self.object:set_velocity(new_velo)
 	self.object:set_acceleration(new_acce)
 end
