@@ -152,13 +152,13 @@ function boat.on_step(self, dtime)
 					minetest.chat_send_player(self.driver, "[boats] Cruise on")
 				end
 			elseif ctrl.down then
-				self.v = self.v - dtime * 1.8
+				self.v = self.v - dtime * 5.0
 				if self.auto then
 					self.auto = false
 					minetest.chat_send_player(self.driver, "[boats] Cruise off")
 				end
 			elseif ctrl.up or self.auto then
-				self.v = self.v + dtime * 1.8
+				self.v = self.v + dtime * 5.0
 			end
 			if ctrl.left then
 				if self.v < -0.001 then
@@ -180,16 +180,15 @@ function boat.on_step(self, dtime)
 		self.object:set_pos(self.object:get_pos())
 		return
 	end
-	local s = get_sign(self.v)
-	self.v = self.v - dtime * 0.6 * s
-	if s ~= get_sign(self.v) then
+	-- We need to multiple by abs to not loose sign of velocity
+	local drag = dtime * 0.2 * self.v * math.abs(self.v)
+	-- If drag is larger than velocity, then stop instead reverse
+	if math.abs(self.v) <= math.abs(drag) then
 		self.object:set_velocity({x = 0, y = 0, z = 0})
 		self.v = 0
 		return
 	end
-	if math.abs(self.v) > 5 then
-		self.v = 5 * get_sign(self.v)
-	end
+	self.v = self.v - drag
 
 	local p = self.object:get_pos()
 	p.y = p.y - 0.5
