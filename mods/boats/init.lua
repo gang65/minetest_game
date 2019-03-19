@@ -67,6 +67,9 @@ function boat.on_rightclick(self, clicker)
 		minetest.after(0.1, function()
 			clicker:set_pos(pos)
 		end)
+		local pos = self.object:get_pos()
+		pos.y = pos.y + 0.1
+		self.object:set_pos(pos)
 	elseif not self.driver then
 		local attach = clicker:get_attach()
 		if attach and attach:get_luaentity() then
@@ -84,6 +87,10 @@ function boat.on_rightclick(self, clicker)
 			player_api.set_animation(clicker, "sit" , 30)
 		end)
 		clicker:set_look_horizontal(self.object:get_yaw())
+
+		local pos = self.object:get_pos()
+		pos.y = pos.y - 0.1
+		self.object:set_pos(pos)
 	end
 end
 
@@ -175,25 +182,20 @@ function boat.on_step(self, dtime)
 			end
 		end
 	end
-	local velo = self.object:get_velocity()
-	if self.v == 0 and velo.x == 0 and velo.y == 0 and velo.z == 0 then
-		self.object:set_pos(self.object:get_pos())
-		return
-	end
 	-- We need to multiple by abs to not loose sign of velocity
 	local drag = dtime * 0.2 * self.v * math.abs(self.v)
 	-- If drag is larger than velocity, then stop instead reverse
 	if math.abs(self.v) <= math.abs(drag) then
-		self.object:set_velocity({x = 0, y = 0, z = 0})
 		self.v = 0
-		return
+	else
+		self.v = self.v - drag
 	end
-	self.v = self.v - drag
 
-	local p = self.object:get_pos()
-	p.y = p.y - 0.5
-	local new_velo
+	local y = self.object:get_velocity().y
 	local new_acce = {x = 0, y = 0, z = 0}
+	-- Check if water is under boat
+	local p = self.object:get_pos()
+	p.y = p.y - 0.3
 	if not is_water(p) then
 		local nodedef = minetest.registered_nodes[minetest.get_node(p).name]
 		if (not nodedef) or nodedef.walkable then
@@ -202,37 +204,21 @@ function boat.on_step(self, dtime)
 		else
 			new_acce = {x = 0, y = -9.8, z = 0}
 		end
-		new_velo = get_velocity(self.v, self.object:get_yaw(),
-			self.object:get_velocity().y)
-		self.object:set_pos(self.object:get_pos())
 	else
-		p.y = p.y + 1
+		y = y - dtime * 0.4 * y * math.abs(y)
+		p.y = p.y + 0.5
+		-- Check if water is above boat
 		if is_water(p) then
-			local y = self.object:get_velocity().y
-			if y >= 5 then
-				y = 5
-			elseif y < 0 then
-				new_acce = {x = 0, y = 20, z = 0}
-			else
-				new_acce = {x = 0, y = 5, z = 0}
-			end
-			new_velo = get_velocity(self.v, self.object:get_yaw(), y)
-			self.object:set_pos(self.object:get_pos())
+			-- acceleration caused by buoyancy
+			new_acce = {x = 0, y = 3, z = 0}
 		else
-			new_acce = {x = 0, y = 0, z = 0}
-			if math.abs(self.object:get_velocity().y) < 1 then
-				local pos = self.object:get_pos()
-				pos.y = math.floor(pos.y) + 0.5
-				self.object:set_pos(pos)
-				new_velo = get_velocity(self.v, self.object:get_yaw(), 0)
-			else
-				new_velo = get_velocity(self.v, self.object:get_yaw(),
-					self.object:get_velocity().y)
-				self.object:set_pos(self.object:get_pos())
-			end
+			local posy = self.object:get_pos().y
+			-- If boat is at surface estimate buoyancy according to dipping
+			new_acce = {x = 0, y = 3*(math.abs(posy - math.ceil(posy))) - 1.5, z = 0}
 		end
 	end
-	self.object:set_velocity(new_velo)
+	self.object:set_pos(self.object:get_pos())
+	self.object:set_velocity(get_velocity(self.v, self.object:get_yaw(), y))
 	self.object:set_acceleration(new_acce)
 end
 
