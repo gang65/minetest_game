@@ -135,6 +135,14 @@ function boat.on_punch(self, puncher)
 	end
 end
 
+function myDot(a, b)
+    return (a.x * b.x) + (a.y * b.y) + (a.z * b.z)
+end
+
+function myMag(a)
+    return math.sqrt((a.x * a.x) + (a.y * a.y) + (a.z * a.z))
+end
+
 
 function boat.on_step(self, dtime)
 	self.force = 0.0
@@ -213,9 +221,21 @@ function boat.on_step(self, dtime)
 	new_velo = {x = new_velo.x + self.object:get_velocity().x,
 	            y = new_velo.y,
 							z = new_velo.z + self.object:get_velocity().z}
-	new_velo = {x = new_velo.x - dtime * 0.3 * math.sign(self.object:get_velocity().x) * self.object:get_velocity().x * self.object:get_velocity().x,
+  yaw_vec = get_velocity(1.0, self.object:get_yaw(), self.object:get_velocity().y)
+	local ans = math.acos(myDot(new_velo, yaw_vec) / (myMag(new_velo) * myMag(yaw_vec)))
+	local dragx = dtime * math.sign(self.object:get_velocity().x) * (0.01 + 0.0796 * self.object:get_velocity().x * self.object:get_velocity().x)
+	local dragz = dtime * math.sign(self.object:get_velocity().z) * (0.01 + 0.0796 * self.object:get_velocity().z * self.object:get_velocity().z)
+  if math.abs(new_velo.x) <= math.abs(dragx) then
+		new_velo.x = 0
+		dragx = 0
+	end
+	if math.abs(new_velo.z) <= math.abs(dragz) then
+		new_velo.z = 0
+		dragz = 0
+	end
+	new_velo = {x = new_velo.x - dragx,
 	            y = new_velo.y,
-							z = new_velo.z - dtime * 0.3 * math.sign(self.object:get_velocity().z) * self.object:get_velocity().z * self.object:get_velocity().z}
+							z = new_velo.z - dragz}
 
 	self.object:set_velocity(new_velo)
 	self.object:set_acceleration(new_acce)
